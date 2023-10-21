@@ -55,7 +55,13 @@ static int plat_get_exe_dir(char *dst, int len)
 	memcpy(dst, PICO_DATA_DIR, sizeof PICO_DATA_DIR);
 	return sizeof(PICO_DATA_DIR) - 1;
 #else
-	int j, ret = readlink("/proc/self/exe", dst, len - 1);
+	int j, ret = readlink(
+#ifdef __FreeBSD__
+	"/proc/curproc/file",
+#else
+	"/proc/self/exe",
+#endif
+	dst, len - 1);
 	if (ret < 0) {
 		perror("readlink");
 		ret = 0;
@@ -215,29 +221,6 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 			return NULL;
 		}
 	}
-
-	return ret;
-}
-
-void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
-{
-	void *ret;
-
-	ret = mremap(ptr, oldsize, newsize, MREMAP_MAYMOVE);
-	if (ret == MAP_FAILED) {
-		fprintf(stderr, "mremap %p %zd %zd: ",
-			ptr, oldsize, newsize);
-		perror(NULL);
-		// might be because huge pages can't be remapped,
-		// just make a new mapping
-		ret = plat_mmap(0, newsize, 0, 0);
-		if (ret == MAP_FAILED)
-			return NULL;
-		memcpy(ret, ptr, oldsize);
-		munmap(ptr, oldsize);
-	}
-	if (ret != ptr)
-		printf("warning: mremap moved: %p -> %p\n", ptr, ret);
 
 	return ret;
 }
